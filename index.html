@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>坦克大战 | Phaser 3 + TypeScript</title>
+  </head>
+  <body>
+    <div id="app">
+      <h1>坦克大战</h1>
+      <div class="game-container">
+        <div id="game-container"></div>
+        <div class="game-ui">
+          <div>分数: <span id="score">0</span></div>
+          <div>生命值: <span id="health">100</span></div>
+          <div>敌人剩余: <span id="enemies">3</span></div>
+          <div>关卡: <span id="level">1</span></div>
+        </div>
+      </div>
+      
+      <div class="controls-info">
+        <p>控制: 方向键/WASD 移动 | 空格键 射击</p>
+        <p>目标: 消灭所有敌方坦克</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

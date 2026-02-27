@@ -1,4 +1,17 @@
 import Phaser from 'phaser'
+import tankBlue from '@assets/images/tanks/tank_blue.png'
+import tankRed from '@assets/images/tanks/tank_red.png'
+import tankGreen from '@assets/images/tanks/tank_green.png'
+import bullet from '@assets/images/bullet.png'
+import brick from '@assets/images/tiles/brick.png'
+import grass from '@assets/images/tiles/grass.png'
+import steel from '@assets/images/tiles/steel.png'
+import water from '@assets/images/tiles/water.png'
+import explosion from '@assets/images/explosion.png'
+
+import shot from "@assets/audio/shot.mp3"
+import explosion1 from "@assets/audio/explosion1.mp3"
+import powerup from "@assets/audio/powerup.mp3"
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -36,28 +49,28 @@ export class BootScene extends Phaser.Scene {
   
   private loadAssets(): void {
     // 坦克精灵图（示例，实际需要准备图片）
-    this.load.image('tank_blue', '/assets/images/tanks/tank_blue.png')
-    this.load.image('tank_red', '/assets/images/tanks/tank_red.png')
-    this.load.image('tank_green', '/assets/images/tanks/tank_green.png')
+    this.load.image('tank_blue', tankBlue)
+    this.load.image('tank_red', tankRed)
+    this.load.image('tank_green', tankGreen)
     
     // 子弹
-    this.load.image('bullet', '/assets/images/bullet.png')
+    this.load.image('bullet', bullet)
     
     // 地图瓦片
-    this.load.image('brick', '/assets/images/tiles/brick.png')
-    this.load.image('steel', '/assets/images/tiles/steel.png')
-    this.load.image('water', '/assets/images/tiles/water.png')
-    this.load.image('grass', '/assets/images/tiles/grass.png')
+    this.load.image('brick', brick)
+    this.load.image('steel', steel)
+    this.load.image('water', water)
+    this.load.image('grass', grass)
     
     // 爆炸动画
-    this.load.spritesheet('explosion', '/assets/images/explosion.png', {
+    this.load.spritesheet('explosion',explosion, {
       frameWidth: 64,
       frameHeight: 64
     })
     
     // 音效
-    this.load.audio('shot', '/assets/audio/shot.mp3')
-    this.load.audio('explosion', '/assets/audio/explosion.mp3')
-    this.load.audio('powerup', '/assets/audio/powerup.mp3')
+    this.load.audio('shot', shot)
+    this.load.audio('explosion', explosion1)
+    this.load.audio('powerup', powerup)
   }
 }

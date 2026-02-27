@@ -10,13 +10,14 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'bullet')
+    this.setScale(0.05)
     
     // 添加到场景
     scene.add.existing(this)
     scene.physics.add.existing(this)
     
     this.bornTime = scene.time.now
-    this.setScale(0.5)
+    this.setScale(0.05)
     this.setDepth(2)
   }
   

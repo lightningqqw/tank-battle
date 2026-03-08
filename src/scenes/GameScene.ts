@@ -43,7 +43,12 @@ export class GameScene extends Phaser.Scene {
         // 6. 设置所有碰撞
         this.setupCollisions();
 
-        // 7. 监听坦克销毁事件
+        // 7. 确保 HUDScene 已经启动
+        if (!this.scene.get('HUDScene')) {
+            this.scene.launch('HUDScene');
+        }
+
+        // 8. 监听坦克销毁事件
         this.events.on('tank_destroyed', (data: any) => {
             console.log('坦克销毁事件:', data);
 
@@ -67,6 +72,20 @@ export class GameScene extends Phaser.Scene {
                 this.gameOver(false);
             }
         });
+
+        // 9. 监听玩家受伤事件并转发到 HUDScene
+        this.events.on('player_health_updated', (data: any) => {
+            console.log('GameScene 转发生命更新:', data);
+            const hudScene = this.scene.get('HUDScene');
+            if (hudScene) {
+                hudScene.events.emit('player_health_updated', data);
+            }
+        });
+
+        // 10. 初始化分数
+        this.registry.set('score', 0);
+        this.events.emit('score_updated', 0);
+        this.events.emit('enemy_count_updated', this.enemyTanks.length);
 
         console.log('GameScene create 完成');
     }
@@ -390,6 +409,21 @@ export class GameScene extends Phaser.Scene {
             console.error('坦克受伤时出错:', error);
         }
 
+        // ✅ 如果是玩家被击中，立即触发生命更新
+        if (tank === this.playerTank) {
+            const armor = tank.getArmor();
+            if (armor) {
+                const currentHealth = armor.getCurrentHealth?.() || 0;
+                const maxHealth = armor.getMaxHealth?.() || 100;
+                console.log(`玩家受伤，触发生命更新: ${currentHealth}/${maxHealth}`);
+                
+                this.events.emit('player_health_updated', {
+                    current: currentHealth,
+                    max: maxHealth
+                });
+            }
+        }
+
         // 检查坦克是否死亡
         const armor = tank.getArmor();
         if (armor && armor.getHealthPercent() <= 0) {
@@ -405,8 +439,9 @@ export class GameScene extends Phaser.Scene {
 
                 // 加分
                 const currentScore = this.registry.get('score') || 0;
-                this.registry.set('score', currentScore + 100);
-                this.events.emit('score_updated', currentScore + 100);
+                const newScore = currentScore + 100;
+                this.registry.set('score', newScore);
+                this.events.emit('score_updated', newScore);
                 this.events.emit('enemy_count_updated', this.enemyTanks.length);
 
                 console.log(`敌人被消灭，剩余: ${this.enemyTanks.length}`);

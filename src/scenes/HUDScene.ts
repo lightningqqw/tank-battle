@@ -1,8 +1,10 @@
+// scenes/HUDScene.ts
 import Phaser from 'phaser';
 
 export class HUDScene extends Phaser.Scene {
     private scoreText!: Phaser.GameObjects.Text;
     private healthBar!: Phaser.GameObjects.Graphics;
+    private healthBarBg!: Phaser.GameObjects.Graphics;
     private enemiesText!: Phaser.GameObjects.Text;
     private levelText!: Phaser.GameObjects.Text;
     private healthBarWidth: number = 200;
@@ -11,7 +13,6 @@ export class HUDScene extends Phaser.Scene {
     private currentHealth: number = 100;
     private maxHealth: number = 100;
     private currentScore: number = 0;
-    private currentLevel: number = 1;
     private enemyCount: number = 0;
     
     constructor() {
@@ -19,10 +20,19 @@ export class HUDScene extends Phaser.Scene {
     }
     
     create(): void {
+        console.log('HUDScene create 开始');
+        
         this.createUIBackground();
         this.createHealthBar();
         this.createTextElements();
         this.setupEventListeners();
+        
+        // 初始化显示
+        this.updateHealthBar();
+        this.scoreText.setText('0');
+        this.enemiesText.setText('0');
+        
+        console.log('HUDScene create 完成');
     }
     
     private createUIBackground(): void {
@@ -34,15 +44,14 @@ export class HUDScene extends Phaser.Scene {
     
     private createHealthBar(): void {
         // 背景
-        const bg = this.add.graphics();
-        bg.fillStyle(0x333333, 1);
-        bg.fillRect(20, 45, this.healthBarWidth, this.healthBarHeight);
-        bg.setDepth(1001);
+        this.healthBarBg = this.add.graphics();
+        this.healthBarBg.fillStyle(0x333333, 1);
+        this.healthBarBg.fillRect(20, 45, this.healthBarWidth, this.healthBarHeight);
+        this.healthBarBg.setDepth(1001);
         
         // 前景
         this.healthBar = this.add.graphics();
         this.healthBar.setDepth(1002);
-        this.updateHealthBar();
     }
     
     private createTextElements(): void {
@@ -65,39 +74,54 @@ export class HUDScene extends Phaser.Scene {
         // 关卡
         this.add.text(400, 10, '关卡', style).setDepth(1001);
         this.levelText = this.add.text(400, 30, '1', style).setDepth(1001);
+        
+        // 生命值文字
+        this.add.text(20, 45, '生命', style).setDepth(1001);
     }
     
     private setupEventListeners(): void {
-        // 监听游戏事件
+        // 监听来自 GameScene 的事件
         const gameScene = this.scene.get('GameScene');
         
-        gameScene.events.on('score_updated', (score: number) => {
-            this.currentScore = score;
-            this.scoreText.setText(score.toString());
-        });
-        
-        gameScene.events.on('player_health_updated', (data: { current: number, max: number }) => {
-            this.currentHealth = data.current;
-            this.maxHealth = data.max;
-            this.updateHealthBar();
-        });
-        
-        gameScene.events.on('enemy_count_updated', (count: number) => {
-            this.enemyCount = count;
-            this.enemiesText.setText(count.toString());
-        });
-        
-        gameScene.events.on('level_updated', (level: number) => {
-            this.currentLevel = level;
-            this.levelText.setText(level.toString());
-        });
+        if (gameScene) {
+            // 玩家生命更新
+            gameScene.events.on('player_health_updated', (data: { current: number, max: number }) => {
+                console.log('HUD 收到生命更新:', data);
+                this.currentHealth = data.current;
+                this.maxHealth = data.max;
+                this.updateHealthBar();
+            });
+            
+            // 分数更新
+            gameScene.events.on('score_updated', (score: number) => {
+                console.log('HUD 收到分数更新:', score);
+                this.currentScore = score;
+                this.scoreText.setText(score.toString());
+            });
+            
+            // 敌人数量更新
+            gameScene.events.on('enemy_count_updated', (count: number) => {
+                console.log('HUD 收到敌人数量更新:', count);
+                this.enemyCount = count;
+                this.enemiesText.setText(count.toString());
+            });
+            
+            // 关卡更新
+            gameScene.events.on('level_updated', (level: number) => {
+                this.levelText.setText(level.toString());
+            });
+        } else {
+            console.warn('HUDScene: 找不到 GameScene');
+        }
     }
     
     private updateHealthBar(): void {
+        console.log(`更新血条: ${this.currentHealth}/${this.maxHealth}`);
+        
         this.healthBar.clear();
         
         const percent = this.currentHealth / this.maxHealth;
-        const width = this.healthBarWidth * percent;
+        const width = Math.max(0, this.healthBarWidth * percent);
         
         // 根据血量改变颜色
         let color = 0x00ff00; // 绿色
@@ -106,9 +130,5 @@ export class HUDScene extends Phaser.Scene {
         
         this.healthBar.fillStyle(color, 1);
         this.healthBar.fillRect(20, 45, width, this.healthBarHeight);
-    }
-    
-    update(): void {
-        // 可以添加一些动画效果
     }
 }

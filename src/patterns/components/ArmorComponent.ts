@@ -4,7 +4,7 @@ import { Component } from './Component';
 export class ArmorComponent extends Component {
     private maxHealth: number;
     private currentHealth: number;
-    private isDead: boolean = false; // 防止重复死亡
+    private isDead: boolean = false;
     
     constructor(health: number) {
         super('armor');
@@ -18,18 +18,20 @@ export class ArmorComponent extends Component {
     }
     
     takeDamage(amount: number): boolean {
-        // 如果已经死亡，不再处理伤害
-        if (this.isDead) {
-            return false;
-        }
+        if (this.isDead) return false;
         
         const oldHealth = this.currentHealth;
-        this.currentHealth -= amount;
+        this.currentHealth = Math.max(0, this.currentHealth - amount);
         
         console.log(`装甲受伤: ${oldHealth} -> ${this.currentHealth}/${this.maxHealth}`);
         
-        // 发送受伤事件（如果 tank 还存在）
+        // 发送受伤事件
         if (this.tank && this.tank.scene) {
+            this.tank.scene.events.emit('player_health_updated', {
+                current: this.currentHealth,
+                max: this.maxHealth
+            });
+            
             this.sendMessage('*', 'damaged', {
                 health: this.currentHealth,
                 maxHealth: this.maxHealth,
@@ -40,12 +42,7 @@ export class ArmorComponent extends Component {
         if (this.currentHealth <= 0) {
             console.log('装甲耐久耗尽');
             this.isDead = true;
-            
-            // 发送死亡事件
-            if (this.tank && this.tank.scene) {
-                this.sendMessage('*', 'destroyed', {});
-            }
-            
+            this.sendMessage('*', 'destroyed', {});
             return false;
         }
         
@@ -64,6 +61,11 @@ export class ArmorComponent extends Component {
     
     getCurrentHealth(): number {
         return this.currentHealth;
+    }
+    
+    // ✅ 添加 getMaxHealth 方法
+    getMaxHealth(): number {
+        return this.maxHealth;
     }
     
     handleMessage(sender: string, message: string, data?: any): void {

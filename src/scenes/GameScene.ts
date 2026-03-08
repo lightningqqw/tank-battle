@@ -149,7 +149,29 @@ export class GameScene extends Phaser.Scene {
         if (type === 'base') textureKey = 'steel';
         
         const wall = this.walls.create(x, y, textureKey);
-        wall.setScale(0.05).refreshBody();
+        
+        // ✅ 根据瓦片类型设置不同的缩放比例
+        let scale = 0.05; // 默认缩放
+        
+        switch(type) {
+            case 'brick':
+                scale = 0.025; // brick 图片大一倍，所以缩小到一半 (0.05/2 = 0.025)
+                break;
+            case 'steel':
+                scale = 0.05; // steel 保持默认
+                break;
+            case 'water':
+                scale = 0.05; // water 保持默认
+                break;
+            case 'grass':
+                scale = 0.05; // grass 保持默认
+                break;
+            case 'base':
+                scale = 0.05; // base 保持默认
+                break;
+        }
+        
+        wall.setScale(scale).refreshBody();
         
         wall.setData('type', type);
         wall.setData('health', health || 1);

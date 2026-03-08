@@ -51,7 +51,7 @@ export class MapGenerator {
         return {
             width: 20,
             height: 15,
-            tileSize: 40,
+            tileSize: 100,
             wallDensity: Math.min(0.2 + level * 0.05, 0.5),
             steelRatio: Math.min(0.1 + level * 0.1, 0.4),
             hasWater: level >= 2,

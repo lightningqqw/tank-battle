@@ -1,5 +1,6 @@
 // patterns/components/ArmorComponent.ts
 import { Component } from './Component';
+import { TankType } from '../../entities/Tank'; // 导入 TankType
 
 export class ArmorComponent extends Component {
     private maxHealth: number;
@@ -25,23 +26,21 @@ export class ArmorComponent extends Component {
         
         console.log(`装甲受伤: ${oldHealth} -> ${this.currentHealth}/${this.maxHealth}`);
         
-        // ✅ 发送受伤事件，包含坦克类型信息
+        // 发送受伤事件 - 现在 TankType 已定义
         if (this.tank && this.tank.scene) {
-            // 只对玩家坦克发送 UI 更新事件
+            // 对玩家坦克发送 UI 更新事件
             if (this.tank.type === TankType.PLAYER) {
                 this.tank.scene.events.emit('player_health_updated', {
                     current: this.currentHealth,
-                    max: this.maxHealth,
-                    tankType: this.tank.type
+                    max: this.maxHealth
                 });
             }
             
-            // 通用受伤事件（用于其他系统）
+            // 通用受伤消息
             this.sendMessage('*', 'damaged', {
                 health: this.currentHealth,
                 maxHealth: this.maxHealth,
-                damage: amount,
-                tankType: this.tank.type
+                damage: amount
             });
         }
         
@@ -69,7 +68,6 @@ export class ArmorComponent extends Component {
         return this.currentHealth;
     }
     
-    // ✅ 添加 getMaxHealth 方法
     getMaxHealth(): number {
         return this.maxHealth;
     }

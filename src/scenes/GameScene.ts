@@ -403,7 +403,6 @@ export class GameScene extends Phaser.Scene {
             );
         }
     }
-
     private handleBulletTankCollision = (obj1: any, obj2: any, expectedShooter: TankType): void => {
         if (this.isGameOver || this.isTransitioning) return;
     
@@ -436,6 +435,7 @@ export class GameScene extends Phaser.Scene {
     
         bullet.hit();
     
+        // ✅ 坦克受伤 - 敌人和玩家都会掉血
         try {
             tank.takeDamage(damage);
         } catch (error) {
@@ -456,7 +456,7 @@ export class GameScene extends Phaser.Scene {
                 });
             }
         }
-        // 敌人受伤不触发任何 UI 更新事件
+        // 敌人受伤不会触发 UI 更新，但仍然会掉血
     
         // 检查坦克是否死亡
         const armor = tank.getArmor();
@@ -464,6 +464,7 @@ export class GameScene extends Phaser.Scene {
             console.log(`坦克死亡: ${tank.type}`);
     
             if (tank !== this.playerTank) {
+                // 敌人死亡
                 const index = this.enemyTanks.indexOf(tank);
                 if (index > -1) {
                     this.enemyTanks.splice(index, 1);
@@ -482,6 +483,7 @@ export class GameScene extends Phaser.Scene {
                     this.victory();
                 }
             } else {
+                // 玩家死亡
                 console.log('💀 玩家死亡，游戏结束');
                 this.gameOver(false);
             }

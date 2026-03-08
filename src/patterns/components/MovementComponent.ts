@@ -1,11 +1,12 @@
+// patterns/components/MovementComponent.ts
 import { Component } from './Component';
 
 export class MovementComponent extends Component {
     private speed: number;
-    private targetDirection: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0); // 目标方向
-    private currentDirection: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0); // 当前方向
+    private targetDirection: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
+    private currentDirection: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 1); // 默认向下（方便测试）
     private baseSpeed: number;
-    private isMoving: boolean = false; // 是否有移动输入
+    private isMoving: boolean = false;
     
     constructor(speed: number) {
         super('movement');
@@ -17,34 +18,36 @@ export class MovementComponent extends Component {
         if (!this.tank) return;
         
         if (this.isMoving) {
-            // 有输入时移动
             this.tank.setVelocity(
                 this.currentDirection.x * this.speed,
                 this.currentDirection.y * this.speed
             );
             
-            // 平滑旋转（可选）
+            // 设置坦克旋转
             const targetRotation = Math.atan2(this.currentDirection.y, this.currentDirection.x);
             this.tank.rotation = targetRotation;
         } else {
-            // 没有输入时停止
             this.tank.setVelocity(0, 0);
         }
     }
     
     setDirection(direction: Phaser.Math.Vector2): void {
         if (direction.length() > 0) {
-            // 有方向输入
             this.targetDirection = direction.clone().normalize();
             this.currentDirection = this.targetDirection.clone();
             this.isMoving = true;
+            
+            console.log(`Movement: 方向设置为 (${this.currentDirection.x}, ${this.currentDirection.y})`);
+            
+            // 重要：广播方向变化给其他组件（特别是武器组件）
+            this.sendMessage('weapon', 'directionChanged', { 
+                direction: this.currentDirection.clone() 
+            });
         } else {
-            // 没有方向输入
             this.isMoving = false;
         }
     }
     
-    // 停止移动
     stop(): void {
         this.isMoving = false;
         if (this.tank) {
@@ -52,29 +55,13 @@ export class MovementComponent extends Component {
         }
     }
     
-    setSpeed(speed: number): void {
-        this.speed = speed;
-    }
-    
-    resetSpeed(): void {
-        this.speed = this.baseSpeed;
-    }
-    
     getDirection(): Phaser.Math.Vector2 {
         return this.currentDirection.clone();
-    }
-    
-    isCurrentlyMoving(): boolean {
-        return this.isMoving;
     }
     
     handleMessage(sender: string, message: string, data?: any): void {
         if (message === 'speedBoost') {
             this.speed *= data.factor;
-        } else if (message === 'slowDown') {
-            this.speed *= data.factor;
-        } else if (message === 'stop') {
-            this.stop();
         }
     }
 }

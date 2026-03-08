@@ -22,26 +22,26 @@ export class GameScene extends Phaser.Scene {
 
     create(): void {
         console.log('GameScene create 开始');
-        
+
         // 1. 设置物理世界
         this.physics.world.setBounds(0, 0, 800, 600);
-        
+
         // 2. 初始化对象池和工厂（注意顺序！）
         this.initPoolsAndFactories();
-        
+
         // 3. 创建地图和墙体
         this.createMap();
-        
+
         // 4. 创建玩家和敌人坦克
         this.createPlayerTank();
         this.createEnemyTanks();
-        
+
         // 5. 设置玩家控制
         this.setupPlayerControls();
-        
+
         // 6. 设置所有碰撞
         this.setupCollisions();
-        
+
         console.log('GameScene create 完成');
     }
 
@@ -50,11 +50,11 @@ export class GameScene extends Phaser.Scene {
         // 1. 先初始化子弹池（最重要！）
         this.bulletPool = new BulletPool(this, 30);
         console.log('子弹池初始化完成');
-        
+
         // 2. 再初始化特效池
         this.effectPool = new EffectPool(this, 20);
         console.log('特效池初始化完成');
-        
+
         // 3. 最后初始化坦克工厂（需要传入已初始化的 bulletPool）
         this.tankFactory = new TankFactory(this, this.bulletPool);
         console.log('坦克工厂初始化完成');
@@ -139,7 +139,7 @@ export class GameScene extends Phaser.Scene {
             { color: TankColor.GREEN, x: 700, y: 300, speed: 80, health: 80 },
             { color: TankColor.BLUE, x: 700, y: 500, speed: 100, health: 100 }
         ];
-        
+
         enemyConfigs.forEach(config => {
             const enemy = this.tankFactory.createTank({
                 type: TankType.ENEMY,
@@ -149,13 +149,14 @@ export class GameScene extends Phaser.Scene {
                 speed: config.speed,
                 health: config.health
             });
-            
+
             this.enemyTanks.push(enemy);
         });
-        
+
         console.log(`创建了 ${this.enemyTanks.length} 个敌人坦克`);
     }
 
+    // GameScene.ts - setupPlayerControls 方法
     private setupPlayerControls(): void {
         const cursors = this.input.keyboard.createCursorKeys();
         const keys = {
@@ -165,42 +166,77 @@ export class GameScene extends Phaser.Scene {
             d: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
             space: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
         };
-        
+
         // 移动使用 update 事件
         this.input.keyboard.on('update', () => {
             this.handlePlayerInput();
         });
-        
-        // 射击使用 down 事件
+
+        // 射击使用 down 事件 - 确保事件绑定正确
         keys.space.on('down', () => {
-            if (this.playerTank?.active) {
-                const success = this.playerTank.fire();
-                if (success) {
-                    console.log('子弹发射成功');
-                }
-            }
+            console.log('空格键按下'); // 调试：检查是否触发
+            this.handlePlayerShoot();
         });
-        
+
+        // 添加按键测试
+        keys.space.on('up', () => {
+            console.log('空格键释放');
+        });
+
         this.playerKeys = { cursors, keys };
     }
 
+    private handlePlayerShoot = (): void => {
+        console.log('handlePlayerShoot 被调用'); // 调试
+
+        if (!this.playerTank?.active) {
+            console.log('玩家坦克不活跃');
+            return;
+        }
+
+        console.log('调用 playerTank.fire()');
+        const success = this.playerTank.fire();
+
+        if (success) {
+            console.log('✅ 子弹发射成功');
+
+            // 延迟检查子弹池状态
+            setTimeout(() => {
+                const count = this.bulletPool?.getActiveCount();
+                console.log(`发射后活跃子弹数: ${count}`);
+            }, 50);
+        } else {
+            console.log('❌ 子弹发射失败');
+        }
+    }
+
+
     private handlePlayerInput = (): void => {
         if (!this.playerTank?.active) return;
-        
+
         const { cursors, keys } = this.playerKeys;
-        
+
+        // 计算移动方向
         let moveX = 0;
         let moveY = 0;
-        
+
         if (keys.a.isDown || cursors.left.isDown) moveX -= 1;
         if (keys.d.isDown || cursors.right.isDown) moveX += 1;
         if (keys.w.isDown || cursors.up.isDown) moveY -= 1;
         if (keys.s.isDown || cursors.down.isDown) moveY += 1;
-        
+
         const movement = this.playerTank.getMovement();
         if (movement) {
             if (moveX !== 0 || moveY !== 0) {
-                const direction = new Phaser.Math.Vector2(moveX, moveY).normalize();
+                // 创建方向向量并归一化
+                const direction = new Phaser.Math.Vector2(moveX, moveY);
+
+                // 对角线移动时保持速度一致
+                if (moveX !== 0 && moveY !== 0) {
+                    direction.normalize();
+                }
+
+                console.log(`Player input: (${moveX}, ${moveY}) -> direction: (${direction.x}, ${direction.y})`);
                 movement.setDirection(direction);
             } else {
                 movement.stop();
@@ -210,35 +246,35 @@ export class GameScene extends Phaser.Scene {
 
     private setupCollisions(): void {
         console.log('设置碰撞...');
-        
+
         // 坦克与墙碰撞
         if (this.playerTank && this.walls) {
             this.physics.add.collider(this.playerTank, this.walls);
         }
-        
+
         if (this.enemyTanks && this.walls) {
             this.physics.add.collider(this.enemyTanks, this.walls);
         }
-        
+
         // 坦克之间碰撞
         if (this.playerTank && this.enemyTanks) {
             this.physics.add.collider(this.playerTank, this.enemyTanks);
         }
-        
+
         if (this.enemyTanks) {
             this.physics.add.collider(this.enemyTanks, this.enemyTanks);
         }
-        
+
         // 子弹碰撞
         this.setupBulletCollisions();
     }
 
     private setupBulletCollisions(): void {
         console.log('设置子弹碰撞...');
-        
+
         const activeBullets = this.bulletPool.getActiveBullets();
         console.log('当前活跃子弹数:', activeBullets.length);
-        
+
         this.physics.add.overlap(
             this.bulletPool.getActiveBullets(), // 每次碰撞检测时都会重新调用这个方法！
             this.enemyTanks,
@@ -248,7 +284,7 @@ export class GameScene extends Phaser.Scene {
             undefined,
             this
         );
-        
+
         // 2. 敌人子弹 vs 玩家坦克
         this.physics.add.overlap(
             this.bulletPool.getActiveBullets(), // 每次碰撞检测时重新获取
@@ -259,7 +295,7 @@ export class GameScene extends Phaser.Scene {
             undefined,
             this
         );
-        
+
         // 3. 子弹 vs 墙
         this.physics.add.overlap(
             this.bulletPool.getActiveBullets(), // 每次碰撞检测时重新获取
@@ -274,53 +310,53 @@ export class GameScene extends Phaser.Scene {
 
     private handleBulletTankCollision = (obj1: any, obj2: any, expectedShooter: TankType): void => {
         console.log('🔥 子弹-坦克碰撞触发！');
-        
+
         const isBullet = (obj: any): boolean => {
             return obj && typeof obj.getShooterType === 'function' && obj.active;
         };
-        
+
         const isTank = (obj: any): boolean => {
             return obj && typeof obj.takeDamage === 'function' && obj.active;
         };
-        
+
         const bullet = isBullet(obj1) ? obj1 : (isBullet(obj2) ? obj2 : null);
         const tank = isTank(obj1) ? obj1 : (isTank(obj2) ? obj2 : null);
-        
+
         if (!bullet || !tank) {
             console.log('无法识别子弹或坦克');
             return;
         }
-        
+
         const shooterType = bullet.getShooterType();
         console.log(`子弹类型: ${shooterType}, 期望: ${expectedShooter}, 坦克类型: ${tank.type}`);
-        
+
         if (shooterType !== expectedShooter) {
             console.log('子弹类型不匹配，忽略');
             return;
         }
-        
+
         const damage = bullet.getDamage();
         console.log(`子弹造成伤害: ${damage}`);
-        
+
         // 子弹击中（播放效果）
         bullet.hit();
-        
+
         // 坦克受伤 - 直接调用 takeDamage
         tank.takeDamage(damage);
-        
+
         // 如果是敌人被玩家击中，检查死亡并加分
         if (expectedShooter === TankType.PLAYER && tank !== this.playerTank) {
             const armor = tank.getArmor();
             if (armor) {
                 console.log(`敌人剩余生命: ${armor.getCurrentHealth?.() || 'unknown'}`);
-                
+
                 if (armor.getHealthPercent() <= 0) {
                     console.log('敌人死亡，加分');
                     const index = this.enemyTanks.indexOf(tank);
                     if (index > -1) {
                         this.enemyTanks.splice(index, 1);
                     }
-                    
+
                     const currentScore = this.registry.get('score') || 0;
                     this.registry.set('score', currentScore + 100);
                     this.events.emit('score_updated', currentScore + 100);
@@ -328,13 +364,13 @@ export class GameScene extends Phaser.Scene {
                 }
             }
         }
-        
+
         // 如果是玩家被击中
         if (expectedShooter === TankType.ENEMY && tank === this.playerTank) {
             const armor = tank.getArmor();
             if (armor) {
                 console.log(`玩家剩余生命: ${armor.getCurrentHealth?.()}`);
-                
+
                 if (armor.getHealthPercent() <= 0) {
                     console.log('玩家死亡，游戏结束');
                     this.gameOver(false);
@@ -349,18 +385,18 @@ export class GameScene extends Phaser.Scene {
         const isBullet = (obj: any): boolean => {
             return obj && typeof obj.hit === 'function' && obj.active;
         };
-        
+
         const isWall = (obj: any): boolean => {
             return obj && obj.texture && (obj.texture.key === 'brick' || obj.texture.key === 'steel');
         };
-        
+
         const bullet = isBullet(obj1) ? obj1 : (isBullet(obj2) ? obj2 : null);
         const wall = isWall(obj1) ? obj1 : (isWall(obj2) ? obj2 : null);
-        
+
         if (!bullet || !wall) return;
-        
+
         bullet.hit();
-        
+
         const health = wall.getData('health') || 1;
         if (health > 1) {
             wall.setData('health', health - 1);
@@ -374,7 +410,7 @@ export class GameScene extends Phaser.Scene {
         if (this.textures.exists('explosion')) {
             const explosion = this.add.sprite(x, y, 'explosion');
             explosion.setScale(scale);
-            
+
             if (this.anims.exists('explode')) {
                 explosion.play('explode');
                 explosion.once('animationcomplete', () => explosion.destroy());
@@ -401,11 +437,11 @@ export class GameScene extends Phaser.Scene {
 
     update(time: number, delta: number): void {
         this.handlePlayerInput();
-        
+
         if (this.playerTank?.active) {
             this.playerTank.update(time, delta);
         }
-        
+
         this.enemyTanks.forEach(tank => {
             if (tank.active) {
                 tank.update(time, delta);

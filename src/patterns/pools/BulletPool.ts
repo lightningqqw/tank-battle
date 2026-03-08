@@ -5,12 +5,14 @@ export class BulletPool {
     private scene: Phaser.Scene;
     private pool: Bullet[] = [];
     private active: Set<Bullet> = new Set();
+    private activeBulletsArray: Bullet[] = []; // 新增：维护一个数组用于碰撞检测
     private poolSize: number;
     
     constructor(scene: Phaser.Scene, poolSize: number = 30) {
         this.scene = scene;
         this.poolSize = poolSize;
         
+        // 预创建子弹
         for (let i = 0; i < poolSize; i++) {
             const bullet = new Bullet(scene, -100, -100);
             bullet.setActive(false);
@@ -42,6 +44,8 @@ export class BulletPool {
         
         if (bullet) {
             this.active.add(bullet);
+            this.activeBulletsArray.push(bullet); // 添加到数组
+            console.log(`子弹池: 获取子弹，当前活跃数: ${this.active.size}`);
         }
         
         return bullet;
@@ -58,11 +62,20 @@ export class BulletPool {
                 body.setVelocity(0, 0);
             }
             this.active.delete(bullet);
+            
+            // 从数组中移除
+            const index = this.activeBulletsArray.indexOf(bullet);
+            if (index > -1) {
+                this.activeBulletsArray.splice(index, 1);
+            }
+            
+            console.log(`子弹池: 释放子弹，当前活跃数: ${this.active.size}`);
         }
     }
     
+    // ✅ 返回同一个数组引用，Phaser会持续使用这个数组
     getActiveBullets(): Bullet[] {
-        return Array.from(this.active).filter(bullet => bullet.active);
+        return this.activeBulletsArray;
     }
     
     getActiveCount(): number {

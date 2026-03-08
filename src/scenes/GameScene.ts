@@ -239,9 +239,8 @@ export class GameScene extends Phaser.Scene {
         const activeBullets = this.bulletPool.getActiveBullets();
         console.log('当前活跃子弹数:', activeBullets.length);
         
-        // 1. 玩家子弹 vs 敌人坦克
         this.physics.add.overlap(
-            activeBullets,
+            this.bulletPool.getActiveBullets(), // 每次碰撞检测时都会重新调用这个方法！
             this.enemyTanks,
             (obj1: any, obj2: any) => {
                 this.handleBulletTankCollision(obj1, obj2, TankType.PLAYER);
@@ -252,7 +251,7 @@ export class GameScene extends Phaser.Scene {
         
         // 2. 敌人子弹 vs 玩家坦克
         this.physics.add.overlap(
-            activeBullets,
+            this.bulletPool.getActiveBullets(), // 每次碰撞检测时重新获取
             this.playerTank,
             (obj1: any, obj2: any) => {
                 this.handleBulletTankCollision(obj1, obj2, TankType.ENEMY);
@@ -263,7 +262,7 @@ export class GameScene extends Phaser.Scene {
         
         // 3. 子弹 vs 墙
         this.physics.add.overlap(
-            activeBullets,
+            this.bulletPool.getActiveBullets(), // 每次碰撞检测时重新获取
             this.walls,
             (obj1: any, obj2: any) => {
                 this.handleBulletWallCollision(obj1, obj2);

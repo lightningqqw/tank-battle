@@ -1,3 +1,4 @@
+// entities/CompositeTank.ts
 import Phaser from 'phaser';
 import { TankType, TankColor } from './Tank';
 import { Component } from '../patterns/components/Component';
@@ -17,18 +18,18 @@ export enum TankStateType {
 
 export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
     public type: TankType;
-    public color: TankColor;  // 现在在构造函数中初始化
+    public color: TankColor;
     public baseSpeed: number;
-
+    public isDestroying: boolean = false;
+    
     private components: Map<string, Component>;
     private states: Map<TankStateType, TankState>;
     private currentState: TankState | null;
     private messageQueue: { sender: string, target: string, message: string, data?: any }[];
-
-
-    constructor(scene: Phaser.Scene, x: number, y: number, texture: string, type: TankType, color: TankColor) {
+    
+    constructor(scene: Phaser.Scene, x: number, y: number, texture: string, type: TankType, color: TankColor = TankColor.BLUE) {
         super(scene, x, y, texture);
-
+        
         this.type = type;
         this.color = color;
         this.baseSpeed = 100;
@@ -36,14 +37,14 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
         this.states = new Map();
         this.currentState = null;
         this.messageQueue = [];
-
+        
         scene.add.existing(this);
         scene.physics.add.existing(this);
-
+        
         this.setScale(0.05);
         this.setCollideWorldBounds(true);
         this.setDepth(1);
-
+        
         if (this.body) {
             const body = this.body as Phaser.Physics.Arcade.Body;
             body.setMass(1);
@@ -51,24 +52,16 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
             body.setMaxVelocity(300);
             body.setBounce(0);
         }
-
-        // 设置初始方向（向下）
-        setTimeout(() => {
-            const movement = this.getMovement();
-            if (movement) {
-                movement.setDirection(new Phaser.Math.Vector2(0, 1));
-            }
-        }, 100);
     }
-
+    
     // ==================== 组件管理 ====================
-
+    
     addComponent(component: Component): this {
         this.components.set(component.getType(), component);
         component.onAdd(this);
         return this;
     }
-
+    
     removeComponent(type: string): this {
         const component = this.components.get(type);
         if (component) {
@@ -77,65 +70,57 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
         }
         return this;
     }
-
-    // 泛型方法获取组件
+    
     getComponent<T extends Component>(type: string): T | null {
         return (this.components.get(type) as T) || null;
     }
-
-    // 类型安全的辅助方法
+    
     getMovement(): MovementComponent | null {
         return this.getComponent<MovementComponent>('movement');
     }
-
-
+    
+    getWeapon(): WeaponComponent | null {
+        return this.getComponent<WeaponComponent>('weapon');
+    }
+    
     getArmor(): ArmorComponent | null {
         return this.getComponent<ArmorComponent>('armor');
     }
-
+    
     // ==================== 状态管理 ====================
-
+    
     registerState(type: TankStateType, state: TankState): this {
         this.states.set(type, state);
         return this;
     }
-
+    
     changeState(stateType: TankStateType): boolean {
         const newState = this.states.get(stateType);
         if (!newState) {
             console.warn(`状态 ${stateType} 不存在`);
             return false;
         }
-
+        
         if (this.currentState === newState) {
             return false;
         }
-
+        
         if (this.currentState) {
             this.currentState.exit();
         }
-
+        
         this.currentState = newState;
         this.currentState.enter();
-
+        
         return true;
     }
-
+    
     getCurrentState(): TankState | null {
         return this.currentState;
     }
-
-    getCurrentStateType(): TankStateType | null {
-        for (const [type, state] of this.states.entries()) {
-            if (state === this.currentState) {
-                return type;
-            }
-        }
-        return null;
-    }
-
+    
     // ==================== 组件间通信 ====================
-
+    
     sendMessage(sender: string, target: string, message: string, data?: any): this {
         if (target === '*') {
             this.components.forEach(component => {
@@ -153,10 +138,10 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
         }
         return this;
     }
-
+    
     private processMessageQueue(): void {
         const remaining: typeof this.messageQueue = [];
-
+        
         this.messageQueue.forEach(msg => {
             const targetComponent = this.components.get(msg.target);
             if (targetComponent) {
@@ -165,41 +150,47 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
                 remaining.push(msg);
             }
         });
-
+        
         this.messageQueue = remaining;
     }
-
+    
     // ==================== 核心方法 ====================
-
+    
     update(time: number, delta: number): void {
+        if (this.isDestroying) return;
+        
         this.processMessageQueue();
-
+        
         this.components.forEach(component => {
             component.update(time, delta);
         });
-
+        
         if (this.currentState) {
             this.currentState.update(time, delta);
         }
     }
-
+    
     takeDamage(amount: number): void {
+        if (this.isDestroying) return;
+        
         console.log(`坦克受伤，伤害值: ${amount}`);
         
         const armor = this.getArmor();
         if (armor) {
             const survived = armor.takeDamage(amount);
             
-            // ✅ 增加空值检查，确保 scene 还存在
-            if (this.scene && this.scene.time) {
-                // 受伤视觉反馈
-                this.setTint(0xff0000);
-                this.scene.time.delayedCall(200, () => {
-                    // 再次检查坦克是否还存在
-                    if (this.active) {
-                        this.clearTint();
-                    }
-                });
+            // ✅ 使用 try-catch 包装视觉反馈
+            try {
+                if (this.scene && this.scene.time) {
+                    this.setTint(0xff0000);
+                    this.scene.time.delayedCall(200, () => {
+                        if (this.active && !this.isDestroying) {
+                            this.clearTint();
+                        }
+                    });
+                }
+            } catch (error) {
+                // 忽略视觉反馈的错误
             }
             
             if (!survived) {
@@ -210,28 +201,15 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
             console.warn('坦克没有装甲组件！');
         }
     }
-
-    // entities/CompositeTank.ts
+    
     fire(): boolean {
-        console.log('CompositeTank.fire 被调用');
-
         const weapon = this.getWeapon();
-        if (!weapon) {
-            console.warn('找不到武器组件');
-            return false;
+        if (weapon) {
+            return weapon.fire();
         }
-
-        console.log('找到武器组件，调用 weapon.fire()');
-        const result = weapon.fire();
-        console.log('weapon.fire() 返回:', result);
-        return result;
+        return false;
     }
-
-    // 确保 getWeapon 方法正确
-    getWeapon(): WeaponComponent | null {
-        return this.getComponent<WeaponComponent>('weapon');
-    }
-    // 移动到指定方向 - 改名避免与父类冲突
+    
     moveToDirection(direction: Phaser.Math.Vector2): this {
         const movement = this.getMovement();
         if (movement) {
@@ -239,63 +217,42 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
         }
         return this;
     }
-
-    // 停止移动 - 改为符合父类签名
+    
     stop(): this {
         this.setVelocity(0, 0);
         return this;
     }
-
-    // 获取速度
-    getSpeed(): number {
-        const movement = this.getMovement();
-        return movement ? (movement as any).speed || this.baseSpeed : this.baseSpeed;
-    }
-
-    // 设置速度
-    setSpeed(speed: number): this {
-        const movement = this.getMovement();
-        if (movement) {
-            (movement as any).setSpeed?.(speed);
-        }
-        return this;
-    }
-
-
-    private isDestroying: boolean = false;
-
+    
+    // ✅ 修复 destroy 方法 - 移除 isActive 检查
     destroy(): this {
-        // 防止重复销毁
-        if (this.isDestroying) {
-            return this;
-        }
+        if (this.isDestroying) return this;
         this.isDestroying = true;
         
         console.log(`CompositeTank.destroy 被调用: ${this.type}`);
         
-        // 先停止所有动作
         this.setVelocity(0, 0);
         this.setActive(false);
+        this.setVisible(false);
         
-        // 发送销毁事件（如果 scene 还存在）
+        // ✅ 安全地发送事件 - 使用简单的检查
         if (this.scene && this.scene.events) {
-            this.sendMessage('*', '*', 'destroyed', {
-                type: this.type,
-                x: this.x,
-                y: this.y
-            });
-            
-            this.scene.events.emit('tank_destroyed', {
-                tank: this,
-                type: this.type
-            });
+            try {
+                // 直接发送事件，不检查 isActive
+                this.scene.events.emit('tank_destroyed', {
+                    tank: this,
+                    type: this.type,
+                    x: this.x,
+                    y: this.y
+                });
+            } catch (error) {
+                // 忽略事件发送的错误
+                console.warn('发送销毁事件时出错:', error);
+            }
         }
         
         // 清理组件
         this.components.forEach(component => component.onRemove());
         this.components.clear();
-        
-        // 清理状态
         this.states.clear();
         this.currentState = null;
         

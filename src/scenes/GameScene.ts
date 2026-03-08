@@ -63,19 +63,19 @@ export class GameScene extends Phaser.Scene {
 
         // 8. 监听坦克销毁事件
         this.events.on('tank_destroyed', (data: any) => {
+            // ✅ 使用简单的场景存在检查
+            if (!this.scene || !this.scene.isActive()) return;
+            
             console.log('坦克销毁事件:', data);
-
+        
             if (data.type === TankType.ENEMY) {
-                // 从数组中移除
                 const index = this.enemyTanks.indexOf(data.tank);
                 if (index > -1) {
                     this.enemyTanks.splice(index, 1);
                 }
-
-                // 更新UI
+        
                 this.events.emit('enemy_count_updated', this.enemyTanks.length);
-
-                // 检查胜利
+        
                 if (this.enemyTanks.length === 0 && !this.isGameOver && !this.isTransitioning) {
                     console.log('🎉 所有敌人被消灭（通过事件），胜利！');
                     this.victory();
@@ -84,8 +84,7 @@ export class GameScene extends Phaser.Scene {
                 console.log('💀 玩家死亡（通过事件），游戏结束');
                 this.gameOver(false);
             }
-        });
-
+        }, this);
         // 9. 监听玩家受伤事件并转发到 HUDScene
         this.events.on('player_health_updated', (data: any) => {
             console.log('GameScene 转发生命更新:', data);

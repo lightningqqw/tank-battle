@@ -14,6 +14,7 @@ export class HUDScene extends Phaser.Scene {
     private maxHealth: number = 100;
     private currentScore: number = 0;
     private enemyCount: number = 0;
+    private isActive: boolean = true; // 添加活动标志
     
     constructor() {
         super({ key: 'HUDScene' });
@@ -31,6 +32,9 @@ export class HUDScene extends Phaser.Scene {
         this.updateHealthBar();
         this.scoreText.setText('0');
         this.enemiesText.setText('0');
+        
+        // 监听场景关闭事件
+        this.events.once('shutdown', this.cleanup, this);
         
         console.log('HUDScene create 完成');
     }
@@ -80,55 +84,82 @@ export class HUDScene extends Phaser.Scene {
     }
     
     private setupEventListeners(): void {
-        // 监听来自 GameScene 的事件
         const gameScene = this.scene.get('GameScene');
         
         if (gameScene) {
             // 玩家生命更新
             gameScene.events.on('player_health_updated', (data: { current: number, max: number }) => {
+                // ✅ 使用简单的场景存在检查
+                if (!this.scene || !this.scene.isActive()) return;
+                
                 console.log('HUD 收到生命更新:', data);
                 this.currentHealth = data.current;
                 this.maxHealth = data.max;
                 this.updateHealthBar();
-            });
+            }, this);
             
             // 分数更新
             gameScene.events.on('score_updated', (score: number) => {
+                if (!this.scene || !this.scene.isActive()) return;
                 console.log('HUD 收到分数更新:', score);
                 this.currentScore = score;
                 this.scoreText.setText(score.toString());
-            });
+            }, this);
             
             // 敌人数量更新
             gameScene.events.on('enemy_count_updated', (count: number) => {
+                if (!this.scene || !this.scene.isActive()) return;
                 console.log('HUD 收到敌人数量更新:', count);
                 this.enemyCount = count;
                 this.enemiesText.setText(count.toString());
-            });
-            
-            // 关卡更新
-            gameScene.events.on('level_updated', (level: number) => {
-                this.levelText.setText(level.toString());
-            });
-        } else {
-            console.warn('HUDScene: 找不到 GameScene');
+            }, this);
         }
     }
     
     private updateHealthBar(): void {
-        console.log(`更新血条: ${this.currentHealth}/${this.maxHealth}`);
+        // ✅ 检查 healthBar 是否存在且场景活跃
+        if (!this.healthBar || !this.scene.isActive() || !this.isActive) return;
         
-        this.healthBar.clear();
+        try {
+            this.healthBar.clear();
+            
+            const percent = this.currentHealth / this.maxHealth;
+            const width = Math.max(0, this.healthBarWidth * percent);
+            
+            // 根据血量改变颜色
+            let color = 0x00ff00; // 绿色
+            if (percent < 0.6) color = 0xffff00; // 黄色
+            if (percent < 0.3) color = 0xff0000; // 红色
+            
+            this.healthBar.fillStyle(color, 1);
+            this.healthBar.fillRect(20, 45, width, this.healthBarHeight);
+        } catch (error) {
+            console.warn('更新血条时出错:', error);
+        }
+    }
+    
+    // ✅ 清理方法
+    private cleanup(): void {
+        console.log('HUDScene 清理');
+        this.isActive = false;
         
-        const percent = this.currentHealth / this.maxHealth;
-        const width = Math.max(0, this.healthBarWidth * percent);
+        // 移除所有事件监听
+        const gameScene = this.scene.get('GameScene');
+        if (gameScene) {
+            gameScene.events.off('player_health_updated');
+            gameScene.events.off('score_updated');
+            gameScene.events.off('enemy_count_updated');
+        }
         
-        // 根据血量改变颜色
-        let color = 0x00ff00; // 绿色
-        if (percent < 0.6) color = 0xffff00; // 黄色
-        if (percent < 0.3) color = 0xff0000; // 红色
+        // 清理图形资源
+        if (this.healthBar) {
+            this.healthBar.clear();
+            this.healthBar.destroy();
+        }
         
-        this.healthBar.fillStyle(color, 1);
-        this.healthBar.fillRect(20, 45, width, this.healthBarHeight);
+        if (this.healthBarBg) {
+            this.healthBarBg.clear();
+            this.healthBarBg.destroy();
+        }
     }
 }

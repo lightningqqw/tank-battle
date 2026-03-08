@@ -5,7 +5,7 @@ import { BulletPool } from '../patterns/pools/BulletPool';
 import { EffectPool } from '../patterns/pools/EffectPool';
 import { CompositeTank, TankStateType } from '../entities/CompositeTank';
 import { TankType, TankColor } from '../entities/Tank';
-import { MovementComponent } from '../patterns/components/MovementComponent';
+import { MapGenerator, MapConfig, MapData, MapTile } from '../patterns/map/MapGenerator'; 
 
 export class GameScene extends Phaser.Scene {
     private playerTank!: CompositeTank;
@@ -15,11 +15,24 @@ export class GameScene extends Phaser.Scene {
     private effectPool!: EffectPool;
     private walls!: Phaser.Physics.Arcade.StaticGroup;
     private playerKeys: any;
+    private currentLevel: number = 1;
+    private mapData!: MapData;
+    private isGameOver: boolean = false;
+    private isTransitioning: boolean = false;
 
     constructor() {
         super({ key: 'GameScene' });
     }
 
+    // 在 init 方法中接收关卡信息
+    init(data: { level?: number }): void {
+        if (data.level) {
+            this.currentLevel = data.level;
+        }
+        this.isGameOver = false;
+        this.isTransitioning = false;
+        console.log(`GameScene init, 当前关卡: ${this.currentLevel}`);
+    }
 
     create(): void {
         console.log('GameScene create 开始');
@@ -63,11 +76,11 @@ export class GameScene extends Phaser.Scene {
                 this.events.emit('enemy_count_updated', this.enemyTanks.length);
 
                 // 检查胜利
-                if (this.enemyTanks.length === 0) {
+                if (this.enemyTanks.length === 0 && !this.isGameOver && !this.isTransitioning) {
                     console.log('🎉 所有敌人被消灭（通过事件），胜利！');
-                    this.gameOver(true);
+                    this.victory();
                 }
-            } else if (data.type === TankType.PLAYER) {
+            } else if (data.type === TankType.PLAYER && !this.isGameOver && !this.isTransitioning) {
                 console.log('💀 玩家死亡（通过事件），游戏结束');
                 this.gameOver(false);
             }
@@ -83,16 +96,18 @@ export class GameScene extends Phaser.Scene {
         });
 
         // 10. 初始化分数
-        this.registry.set('score', 0);
-        this.events.emit('score_updated', 0);
+        if (!this.registry.has('score')) {
+            this.registry.set('score', 0);
+        }
+        this.events.emit('score_updated', this.registry.get('score'));
         this.events.emit('enemy_count_updated', this.enemyTanks.length);
 
         console.log('GameScene create 完成');
     }
 
-    // 初始化对象池和工厂 - 修正顺序！
+    // 初始化对象池和工厂
     private initPoolsAndFactories(): void {
-        // 1. 先初始化子弹池（最重要！）
+        // 1. 先初始化子弹池
         this.bulletPool = new BulletPool(this, 30);
         console.log('子弹池初始化完成');
 
@@ -100,76 +115,83 @@ export class GameScene extends Phaser.Scene {
         this.effectPool = new EffectPool(this, 20);
         console.log('特效池初始化完成');
 
-        // 3. 最后初始化坦克工厂（需要传入已初始化的 bulletPool）
+        // 3. 最后初始化坦克工厂
         this.tankFactory = new TankFactory(this, this.bulletPool);
         console.log('坦克工厂初始化完成');
     }
 
     private createMap(): void {
+        console.log(`创建随机地图，关卡: ${this.currentLevel}`);
+        
+        // 获取随机地图配置
+        const config = MapGenerator.getRandomConfig(this.currentLevel);
+        console.log('地图配置:', config);
+        
+        // 生成地图
+        const generator = new MapGenerator(this, config);
+        this.mapData = generator.generateMap();
+        
+        // 创建墙体组
         this.walls = this.physics.add.staticGroup();
-
-        // 边界墙
-        this.createBoundaryWalls();
-
-        // 障碍物
-        this.createObstacles();
-    }
-
-    private createBoundaryWalls(): void {
-        const tileSize = 40;
-        const { width, height } = this.physics.world.bounds;
-
-        // 顶部
-        for (let x = 0; x < width; x += tileSize) {
-            const wall = this.walls.create(x, 0, 'brick');
-            wall.setScale(0.05).refreshBody();
-            wall.setData('health', 1);
-        }
-
-        // 底部
-        for (let x = 0; x < width; x += tileSize) {
-            const wall = this.walls.create(x, height, 'brick');
-            wall.setScale(0.05).refreshBody();
-            wall.setData('health', 1);
-        }
-
-        // 左侧
-        for (let y = 0; y < height; y += tileSize) {
-            const wall = this.walls.create(0, y, 'brick');
-            wall.setScale(0.05).refreshBody();
-            wall.setData('health', 1);
-        }
-
-        // 右侧
-        for (let y = 0; y < height; y += tileSize) {
-            const wall = this.walls.create(width, y, 'brick');
-            wall.setScale(0.05).refreshBody();
-            wall.setData('health', 1);
-        }
-    }
-
-    private createObstacles(): void {
-        const obstacles = [
-            { x: 200, y: 200, type: 'brick', health: 1 },
-            { x: 300, y: 300, type: 'steel', health: 2 },
-            { x: 400, y: 200, type: 'brick', health: 1 },
-            { x: 500, y: 400, type: 'steel', health: 2 },
-            { x: 600, y: 300, type: 'brick', health: 1 }
-        ];
-
-        obstacles.forEach(obs => {
-            const wall = this.walls.create(obs.x, obs.y, obs.type);
-            wall.setScale(0.05).refreshBody();
-            wall.setData('health', obs.health);
+        
+        // 根据地图数据创建瓦片
+        this.mapData.tiles.forEach(tile => {
+            this.createTile(tile);
         });
+        
+        console.log(`地图创建完成，共 ${this.mapData.tiles.length} 个瓦片`);
+    }
+    
+    private createTile(tile: MapTile): void {
+        const { type, x, y, health } = tile;
+        
+        let textureKey = type;
+        if (type === 'base') textureKey = 'steel';
+        
+        const wall = this.walls.create(x, y, textureKey);
+        wall.setScale(0.05).refreshBody();
+        
+        wall.setData('type', type);
+        wall.setData('health', health || 1);
+        wall.setData('gridX', tile.gridX);
+        wall.setData('gridY', tile.gridY);
+        
+        switch(type) {
+            case 'water':
+                wall.setAlpha(0.7);
+                wall.setData('health', Infinity);
+                wall.setDepth(1);
+                break;
+            case 'grass':
+                wall.setAlpha(0.5);
+                wall.setDepth(0);
+                wall.setData('health', Infinity);
+                break;
+            case 'base':
+                wall.setTint(0xffaa00);
+                wall.setData('health', 1);
+                wall.setDepth(2);
+                break;
+            case 'steel':
+                wall.setTint(0x888888);
+                break;
+            case 'brick':
+                wall.setTint(0xcc6600);
+                break;
+        }
     }
 
+    // 修改 createPlayerTank 使用地图的出生点
     private createPlayerTank(): void {
+        if (!this.mapData) return;
+
+        const spawn = this.mapData.playerSpawn;
+
         this.playerTank = this.tankFactory.createTank({
             type: TankType.PLAYER,
             color: TankColor.BLUE,
-            x: 100,
-            y: 500,
+            x: spawn.x,
+            y: spawn.y,
             speed: 200,
             health: 100,
             damage: 20,
@@ -178,19 +200,25 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
+    // 修改 createEnemyTanks 使用地图的敌人出生点
     private createEnemyTanks(): void {
+        if (!this.mapData) return;
+
         const enemyConfigs = [
-            { color: TankColor.RED, x: 700, y: 100, speed: 120, health: 60 },
-            { color: TankColor.GREEN, x: 700, y: 300, speed: 80, health: 80 },
-            { color: TankColor.BLUE, x: 700, y: 500, speed: 100, health: 100 }
+            { color: TankColor.RED, speed: 120, health: 60 },
+            { color: TankColor.GREEN, speed: 80, health: 80 },
+            { color: TankColor.BLUE, speed: 100, health: 100 }
         ];
 
-        enemyConfigs.forEach(config => {
+        // 使用地图中的敌人出生点
+        this.mapData.enemySpawns.forEach((spawn, index) => {
+            const config = enemyConfigs[index % enemyConfigs.length];
+
             const enemy = this.tankFactory.createTank({
                 type: TankType.ENEMY,
                 color: config.color,
-                x: config.x,
-                y: config.y,
+                x: spawn.x,
+                y: spawn.y,
                 speed: config.speed,
                 health: config.health
             });
@@ -217,13 +245,12 @@ export class GameScene extends Phaser.Scene {
             this.handlePlayerInput();
         });
 
-        // 射击使用 down 事件 - 确保事件绑定正确
+        // 射击使用 down 事件
         keys.space.on('down', () => {
-            console.log('空格键按下'); // 调试：检查是否触发
+            console.log('空格键按下');
             this.handlePlayerShoot();
         });
 
-        // 添加按键测试
         keys.space.on('up', () => {
             console.log('空格键释放');
         });
@@ -232,7 +259,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private handlePlayerShoot = (): void => {
-        console.log('handlePlayerShoot 被调用'); // 调试
+        console.log('handlePlayerShoot 被调用');
 
         if (!this.playerTank?.active) {
             console.log('玩家坦克不活跃');
@@ -245,7 +272,6 @@ export class GameScene extends Phaser.Scene {
         if (success) {
             console.log('✅ 子弹发射成功');
 
-            // 延迟检查子弹池状态
             setTimeout(() => {
                 const count = this.bulletPool?.getActiveCount();
                 console.log(`发射后活跃子弹数: ${count}`);
@@ -255,13 +281,11 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-
     private handlePlayerInput = (): void => {
         if (!this.playerTank?.active) return;
 
         const { cursors, keys } = this.playerKeys;
 
-        // 计算移动方向
         let moveX = 0;
         let moveY = 0;
 
@@ -273,10 +297,8 @@ export class GameScene extends Phaser.Scene {
         const movement = this.playerTank.getMovement();
         if (movement) {
             if (moveX !== 0 || moveY !== 0) {
-                // 创建方向向量并归一化
                 const direction = new Phaser.Math.Vector2(moveX, moveY);
 
-                // 对角线移动时保持速度一致
                 if (moveX !== 0 && moveY !== 0) {
                     direction.normalize();
                 }
@@ -292,7 +314,6 @@ export class GameScene extends Phaser.Scene {
     private setupCollisions(): void {
         console.log('设置碰撞...');
 
-        // 坦克与墙碰撞
         if (this.playerTank && this.walls) {
             this.physics.add.collider(this.playerTank, this.walls);
         }
@@ -301,7 +322,6 @@ export class GameScene extends Phaser.Scene {
             this.physics.add.collider(this.enemyTanks, this.walls);
         }
 
-        // 坦克之间碰撞
         if (this.playerTank && this.enemyTanks) {
             this.physics.add.collider(this.playerTank, this.enemyTanks);
         }
@@ -310,27 +330,22 @@ export class GameScene extends Phaser.Scene {
             this.physics.add.collider(this.enemyTanks, this.enemyTanks);
         }
 
-        // 子弹碰撞
         this.setupBulletCollisions();
     }
-
 
     private setupBulletCollisions(): void {
         console.log('设置子弹碰撞...');
 
         const activeBullets = this.bulletPool.getActiveBullets();
 
-        // 过滤掉正在销毁的坦克
         const activeEnemies = this.enemyTanks.filter(tank => tank && tank.active && !tank.isDestroying);
 
-        // 1. 玩家子弹 vs 敌人坦克
         if (activeEnemies.length > 0) {
             this.physics.add.overlap(
                 activeBullets,
                 activeEnemies,
                 (obj1: any, obj2: any) => {
-                    // 再次检查对象是否还活跃
-                    if (obj1.active && obj2.active) {
+                    if (obj1.active && obj2.active && !this.isGameOver && !this.isTransitioning) {
                         this.handleBulletTankCollision(obj1, obj2, TankType.PLAYER);
                     }
                 },
@@ -339,13 +354,12 @@ export class GameScene extends Phaser.Scene {
             );
         }
 
-        // 2. 敌人子弹 vs 玩家坦克
         if (this.playerTank && this.playerTank.active && !this.playerTank.isDestroying) {
             this.physics.add.overlap(
                 activeBullets,
                 this.playerTank,
                 (obj1: any, obj2: any) => {
-                    if (obj1.active && obj2.active) {
+                    if (obj1.active && obj2.active && !this.isGameOver && !this.isTransitioning) {
                         this.handleBulletTankCollision(obj1, obj2, TankType.ENEMY);
                     }
                 },
@@ -354,7 +368,6 @@ export class GameScene extends Phaser.Scene {
             );
         }
 
-        // 3. 子弹 vs 墙
         if (this.walls) {
             this.physics.add.overlap(
                 activeBullets,
@@ -370,8 +383,9 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-
     private handleBulletTankCollision = (obj1: any, obj2: any, expectedShooter: TankType): void => {
+        if (this.isGameOver || this.isTransitioning) return;
+
         console.log('🔥 子弹-坦克碰撞触发！');
 
         const isBullet = (obj: any): boolean => {
@@ -399,24 +413,21 @@ export class GameScene extends Phaser.Scene {
         const damage = bullet.getDamage();
         console.log(`子弹造成伤害: ${damage}`);
 
-        // 子弹击中
         bullet.hit();
 
-        // 坦克受伤 - 使用 try-catch 防止错误
         try {
             tank.takeDamage(damage);
         } catch (error) {
             console.error('坦克受伤时出错:', error);
         }
 
-        // ✅ 如果是玩家被击中，立即触发生命更新
         if (tank === this.playerTank) {
             const armor = tank.getArmor();
             if (armor) {
                 const currentHealth = armor.getCurrentHealth?.() || 0;
                 const maxHealth = armor.getMaxHealth?.() || 100;
                 console.log(`玩家受伤，触发生命更新: ${currentHealth}/${maxHealth}`);
-                
+
                 this.events.emit('player_health_updated', {
                     current: currentHealth,
                     max: maxHealth
@@ -424,20 +435,16 @@ export class GameScene extends Phaser.Scene {
             }
         }
 
-        // 检查坦克是否死亡
         const armor = tank.getArmor();
         if (armor && armor.getHealthPercent() <= 0) {
             console.log(`坦克死亡: ${tank.type}`);
 
-            // 如果是敌人被玩家消灭
             if (tank !== this.playerTank) {
-                // 从敌人数组中移除
                 const index = this.enemyTanks.indexOf(tank);
                 if (index > -1) {
                     this.enemyTanks.splice(index, 1);
                 }
 
-                // 加分
                 const currentScore = this.registry.get('score') || 0;
                 const newScore = currentScore + 100;
                 this.registry.set('score', newScore);
@@ -446,40 +453,15 @@ export class GameScene extends Phaser.Scene {
 
                 console.log(`敌人被消灭，剩余: ${this.enemyTanks.length}`);
 
-                // 检查是否胜利
-                if (this.enemyTanks.length === 0) {
+                if (this.enemyTanks.length === 0 && !this.isGameOver && !this.isTransitioning) {
                     console.log('🎉 所有敌人被消灭，胜利！');
-                    this.gameOver(true);
+                    this.victory();
                 }
-            }
-            // 如果是玩家被消灭
-            else {
+            } else {
                 console.log('💀 玩家死亡，游戏结束');
                 this.gameOver(false);
             }
         }
-    }
-
-    // 确保 gameOver 方法正确
-    private gameOver(win: boolean): void {
-        console.log(`游戏结束，胜利: ${win}`);
-
-        // 暂停当前场景
-        this.scene.pause();
-
-        // 获取分数
-        const score = this.registry.get('score') || 0;
-
-        // 启动游戏结束场景
-        this.scene.launch('GameOverScene', {
-            win,
-            score: score,
-            level: 1,
-            enemiesKilled: 3 - this.enemyTanks.length,
-            time: 0
-        });
-
-        console.log('GameOverScene 已启动');
     }
 
     private handleBulletWallCollision = (obj1: any, obj2: any): void => {
@@ -527,19 +509,120 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
+    // ✅ 新增胜利处理方法
+    private victory(): void {
+        if (this.isGameOver || this.isTransitioning) return;
+        this.isTransitioning = true;
+        
+        console.log(`胜利！完成第 ${this.currentLevel} 关`);
+        
+        // 显示胜利信息
+        const victoryText = this.add.text(400, 300, `第 ${this.currentLevel} 关完成！`, {
+            fontFamily: 'Arial',
+            fontSize: '48px',
+            color: '#ffff00',
+            stroke: '#000000',
+            strokeThickness: 6
+        }).setOrigin(0.5).setDepth(1000);
+        
+        const nextLevelText = this.add.text(400, 380, '进入下一关...', {
+            fontFamily: 'Arial',
+            fontSize: '24px',
+            color: '#ffffff'
+        }).setOrigin(0.5).setDepth(1000);
+        
+        // 暂停物理世界
+        this.physics.pause();
+        
+        // 延迟后进入下一关
+        this.time.delayedCall(2000, () => {
+            if (this.scene.isActive()) {
+                this.nextLevel();
+            }
+        });
+    }
+
+    // ✅ 新增进入下一关方法
+    private nextLevel(): void {
+        console.log(`进入下一关: ${this.currentLevel + 1}`);
+        
+        // 清理当前场景
+        this.cleanup();
+        
+        // 重新启动场景，关卡+1
+        this.scene.restart({ level: this.currentLevel + 1 });
+    }
+
+    // ✅ 新增清理方法
+    private cleanup(): void {
+        // 销毁所有敌人坦克
+        this.enemyTanks.forEach(tank => {
+            if (tank && tank.active) {
+                tank.destroy();
+            }
+        });
+        this.enemyTanks = [];
+        
+        // 销毁玩家坦克
+        if (this.playerTank && this.playerTank.active) {
+            this.playerTank.destroy();
+        }
+        
+        // 销毁所有墙壁
+        if (this.walls) {
+            this.walls.clear(true, true);
+        }
+        
+        // 清理子弹池
+        if (this.bulletPool) {
+            this.bulletPool.clear();
+        }
+    }
+
+    // ✅ 修改 gameOver 方法
+    private gameOver(win: boolean): void {
+        if (this.isGameOver || this.isTransitioning) return;
+        this.isGameOver = true;
+        
+        console.log(`游戏结束，胜利: ${win}`);
+
+        // 暂停物理世界
+        this.physics.pause();
+        
+        // 暂停当前场景
+        this.scene.pause();
+
+        // 获取分数
+        const score = this.registry.get('score') || 0;
+
+        // 启动游戏结束场景
+        this.scene.launch('GameOverScene', {
+            win,
+            score: score,
+            level: this.currentLevel,
+            enemiesKilled: this.getEnemiesKilled(),
+            time: 0
+        });
+
+        console.log('GameOverScene 已启动');
+    }
+
+    private getEnemiesKilled(): number {
+        return 3 - this.enemyTanks.length;
+    }
 
     update(time: number, delta: number): void {
+        if (this.isGameOver || this.isTransitioning) return;
+        
         this.handlePlayerInput();
 
         if (this.playerTank?.active) {
             this.playerTank.update(time, delta);
-        } else if (this.playerTank && !this.playerTank.active) {
-            // 玩家坦克被销毁但不活跃
+        } else if (this.playerTank && !this.playerTank.active && !this.isGameOver && !this.isTransitioning) {
             console.log('检测到玩家坦克不活跃');
             this.gameOver(false);
         }
 
-        // 过滤掉已销毁的敌人
         this.enemyTanks = this.enemyTanks.filter(tank => {
             if (!tank.active) {
                 console.log('过滤掉已销毁的敌人');
@@ -553,11 +636,5 @@ export class GameScene extends Phaser.Scene {
                 tank.update(time, delta);
             }
         });
-
-        // 检查胜利条件
-        if (this.enemyTanks.length === 0) {
-            console.log('敌人数组为空，胜利！');
-            this.gameOver(true);
-        }
     }
 }

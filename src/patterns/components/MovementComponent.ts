@@ -4,7 +4,7 @@ import { Component } from './Component';
 export class MovementComponent extends Component {
     private speed: number;
     private targetDirection: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
-    private currentDirection: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 1); // 默认向下（方便测试）
+    private currentDirection: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 1);
     private baseSpeed: number;
     private isMoving: boolean = false;
     
@@ -23,7 +23,6 @@ export class MovementComponent extends Component {
                 this.currentDirection.y * this.speed
             );
             
-            // 设置坦克旋转
             const targetRotation = Math.atan2(this.currentDirection.y, this.currentDirection.x);
             this.tank.rotation = targetRotation;
         } else {
@@ -37,15 +36,25 @@ export class MovementComponent extends Component {
             this.currentDirection = this.targetDirection.clone();
             this.isMoving = true;
             
-            console.log(`Movement: 方向设置为 (${this.currentDirection.x}, ${this.currentDirection.y})`);
-            
-            // 重要：广播方向变化给其他组件（特别是武器组件）
+            // 广播方向变化给武器组件
             this.sendMessage('weapon', 'directionChanged', { 
                 direction: this.currentDirection.clone() 
             });
         } else {
             this.isMoving = false;
         }
+    }
+    
+    // ✅ 添加 setSpeed 方法
+    setSpeed(speed: number): void {
+        console.log(`Movement: 设置速度 ${this.speed} -> ${speed}`);
+        this.speed = speed;
+    }
+    
+    // ✅ 添加 resetSpeed 方法
+    resetSpeed(): void {
+        this.speed = this.baseSpeed;
+        console.log(`Movement: 重置速度到 ${this.speed}`);
     }
     
     stop(): void {
@@ -59,9 +68,17 @@ export class MovementComponent extends Component {
         return this.currentDirection.clone();
     }
     
+    getSpeed(): number {
+        return this.speed;
+    }
+    
     handleMessage(sender: string, message: string, data?: any): void {
         if (message === 'speedBoost') {
             this.speed *= data.factor;
+        } else if (message === 'slowDown') {
+            this.speed *= data.factor;
+        } else if (message === 'stop') {
+            this.stop();
         }
     }
 }

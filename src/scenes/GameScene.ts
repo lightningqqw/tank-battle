@@ -20,13 +20,14 @@ export class GameScene extends Phaser.Scene {
         super({ key: 'GameScene' });
     }
 
+
     create(): void {
         console.log('GameScene create 开始');
 
         // 1. 设置物理世界
         this.physics.world.setBounds(0, 0, 800, 600);
 
-        // 2. 初始化对象池和工厂（注意顺序！）
+        // 2. 初始化对象池和工厂
         this.initPoolsAndFactories();
 
         // 3. 创建地图和墙体
@@ -41,6 +42,31 @@ export class GameScene extends Phaser.Scene {
 
         // 6. 设置所有碰撞
         this.setupCollisions();
+
+        // 7. 监听坦克销毁事件
+        this.events.on('tank_destroyed', (data: any) => {
+            console.log('坦克销毁事件:', data);
+
+            if (data.type === TankType.ENEMY) {
+                // 从数组中移除
+                const index = this.enemyTanks.indexOf(data.tank);
+                if (index > -1) {
+                    this.enemyTanks.splice(index, 1);
+                }
+
+                // 更新UI
+                this.events.emit('enemy_count_updated', this.enemyTanks.length);
+
+                // 检查胜利
+                if (this.enemyTanks.length === 0) {
+                    console.log('🎉 所有敌人被消灭（通过事件），胜利！');
+                    this.gameOver(true);
+                }
+            } else if (data.type === TankType.PLAYER) {
+                console.log('💀 玩家死亡（通过事件），游戏结束');
+                this.gameOver(false);
+            }
+        });
 
         console.log('GameScene create 完成');
     }
@@ -269,116 +295,156 @@ export class GameScene extends Phaser.Scene {
         this.setupBulletCollisions();
     }
 
+
     private setupBulletCollisions(): void {
         console.log('设置子弹碰撞...');
 
         const activeBullets = this.bulletPool.getActiveBullets();
-        console.log('当前活跃子弹数:', activeBullets.length);
 
-        this.physics.add.overlap(
-            this.bulletPool.getActiveBullets(), // 每次碰撞检测时都会重新调用这个方法！
-            this.enemyTanks,
-            (obj1: any, obj2: any) => {
-                this.handleBulletTankCollision(obj1, obj2, TankType.PLAYER);
-            },
-            undefined,
-            this
-        );
+        // 过滤掉正在销毁的坦克
+        const activeEnemies = this.enemyTanks.filter(tank => tank && tank.active && !tank.isDestroying);
+
+        // 1. 玩家子弹 vs 敌人坦克
+        if (activeEnemies.length > 0) {
+            this.physics.add.overlap(
+                activeBullets,
+                activeEnemies,
+                (obj1: any, obj2: any) => {
+                    // 再次检查对象是否还活跃
+                    if (obj1.active && obj2.active) {
+                        this.handleBulletTankCollision(obj1, obj2, TankType.PLAYER);
+                    }
+                },
+                undefined,
+                this
+            );
+        }
 
         // 2. 敌人子弹 vs 玩家坦克
-        this.physics.add.overlap(
-            this.bulletPool.getActiveBullets(), // 每次碰撞检测时重新获取
-            this.playerTank,
-            (obj1: any, obj2: any) => {
-                this.handleBulletTankCollision(obj1, obj2, TankType.ENEMY);
-            },
-            undefined,
-            this
-        );
+        if (this.playerTank && this.playerTank.active && !this.playerTank.isDestroying) {
+            this.physics.add.overlap(
+                activeBullets,
+                this.playerTank,
+                (obj1: any, obj2: any) => {
+                    if (obj1.active && obj2.active) {
+                        this.handleBulletTankCollision(obj1, obj2, TankType.ENEMY);
+                    }
+                },
+                undefined,
+                this
+            );
+        }
 
         // 3. 子弹 vs 墙
-        this.physics.add.overlap(
-            this.bulletPool.getActiveBullets(), // 每次碰撞检测时重新获取
-            this.walls,
-            (obj1: any, obj2: any) => {
-                this.handleBulletWallCollision(obj1, obj2);
-            },
-            undefined,
-            this
-        );
+        if (this.walls) {
+            this.physics.add.overlap(
+                activeBullets,
+                this.walls,
+                (obj1: any, obj2: any) => {
+                    if (obj1.active && obj2.active) {
+                        this.handleBulletWallCollision(obj1, obj2);
+                    }
+                },
+                undefined,
+                this
+            );
+        }
     }
+
 
     private handleBulletTankCollision = (obj1: any, obj2: any, expectedShooter: TankType): void => {
         console.log('🔥 子弹-坦克碰撞触发！');
 
         const isBullet = (obj: any): boolean => {
-            return obj && typeof obj.getShooterType === 'function' && obj.active;
+            return obj && !obj.isDestroying && typeof obj.getShooterType === 'function' && obj.active;
         };
 
         const isTank = (obj: any): boolean => {
-            return obj && typeof obj.takeDamage === 'function' && obj.active;
+            return obj && !obj.isDestroying && typeof obj.takeDamage === 'function' && obj.active;
         };
 
         const bullet = isBullet(obj1) ? obj1 : (isBullet(obj2) ? obj2 : null);
         const tank = isTank(obj1) ? obj1 : (isTank(obj2) ? obj2 : null);
 
         if (!bullet || !tank) {
-            console.log('无法识别子弹或坦克');
+            console.log('无法识别子弹或坦克，可能正在销毁中');
             return;
         }
 
         const shooterType = bullet.getShooterType();
-        console.log(`子弹类型: ${shooterType}, 期望: ${expectedShooter}, 坦克类型: ${tank.type}`);
 
         if (shooterType !== expectedShooter) {
-            console.log('子弹类型不匹配，忽略');
             return;
         }
 
         const damage = bullet.getDamage();
         console.log(`子弹造成伤害: ${damage}`);
 
-        // 子弹击中（播放效果）
+        // 子弹击中
         bullet.hit();
 
-        // 坦克受伤 - 直接调用 takeDamage
-        tank.takeDamage(damage);
-
-        // 如果是敌人被玩家击中，检查死亡并加分
-        if (expectedShooter === TankType.PLAYER && tank !== this.playerTank) {
-            const armor = tank.getArmor();
-            if (armor) {
-                console.log(`敌人剩余生命: ${armor.getCurrentHealth?.() || 'unknown'}`);
-
-                if (armor.getHealthPercent() <= 0) {
-                    console.log('敌人死亡，加分');
-                    const index = this.enemyTanks.indexOf(tank);
-                    if (index > -1) {
-                        this.enemyTanks.splice(index, 1);
-                    }
-
-                    const currentScore = this.registry.get('score') || 0;
-                    this.registry.set('score', currentScore + 100);
-                    this.events.emit('score_updated', currentScore + 100);
-                    this.events.emit('enemy_count_updated', this.enemyTanks.length);
-                }
-            }
+        // 坦克受伤 - 使用 try-catch 防止错误
+        try {
+            tank.takeDamage(damage);
+        } catch (error) {
+            console.error('坦克受伤时出错:', error);
         }
 
-        // 如果是玩家被击中
-        if (expectedShooter === TankType.ENEMY && tank === this.playerTank) {
-            const armor = tank.getArmor();
-            if (armor) {
-                console.log(`玩家剩余生命: ${armor.getCurrentHealth?.()}`);
+        // 检查坦克是否死亡
+        const armor = tank.getArmor();
+        if (armor && armor.getHealthPercent() <= 0) {
+            console.log(`坦克死亡: ${tank.type}`);
 
-                if (armor.getHealthPercent() <= 0) {
-                    console.log('玩家死亡，游戏结束');
-                    this.gameOver(false);
-                } else {
-                    this.cameras.main.shake(100, 0.01);
+            // 如果是敌人被玩家消灭
+            if (tank !== this.playerTank) {
+                // 从敌人数组中移除
+                const index = this.enemyTanks.indexOf(tank);
+                if (index > -1) {
+                    this.enemyTanks.splice(index, 1);
+                }
+
+                // 加分
+                const currentScore = this.registry.get('score') || 0;
+                this.registry.set('score', currentScore + 100);
+                this.events.emit('score_updated', currentScore + 100);
+                this.events.emit('enemy_count_updated', this.enemyTanks.length);
+
+                console.log(`敌人被消灭，剩余: ${this.enemyTanks.length}`);
+
+                // 检查是否胜利
+                if (this.enemyTanks.length === 0) {
+                    console.log('🎉 所有敌人被消灭，胜利！');
+                    this.gameOver(true);
                 }
             }
+            // 如果是玩家被消灭
+            else {
+                console.log('💀 玩家死亡，游戏结束');
+                this.gameOver(false);
+            }
         }
+    }
+
+    // 确保 gameOver 方法正确
+    private gameOver(win: boolean): void {
+        console.log(`游戏结束，胜利: ${win}`);
+
+        // 暂停当前场景
+        this.scene.pause();
+
+        // 获取分数
+        const score = this.registry.get('score') || 0;
+
+        // 启动游戏结束场景
+        this.scene.launch('GameOverScene', {
+            win,
+            score: score,
+            level: 1,
+            enemiesKilled: 3 - this.enemyTanks.length,
+            time: 0
+        });
+
+        console.log('GameOverScene 已启动');
     }
 
     private handleBulletWallCollision = (obj1: any, obj2: any): void => {
@@ -426,26 +492,37 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private gameOver(win: boolean): void {
-        this.scene.pause();
-        this.scene.launch('GameOverScene', {
-            win,
-            score: this.registry.get('score') || 0,
-            level: 1
-        });
-    }
 
     update(time: number, delta: number): void {
         this.handlePlayerInput();
 
         if (this.playerTank?.active) {
             this.playerTank.update(time, delta);
+        } else if (this.playerTank && !this.playerTank.active) {
+            // 玩家坦克被销毁但不活跃
+            console.log('检测到玩家坦克不活跃');
+            this.gameOver(false);
         }
+
+        // 过滤掉已销毁的敌人
+        this.enemyTanks = this.enemyTanks.filter(tank => {
+            if (!tank.active) {
+                console.log('过滤掉已销毁的敌人');
+                return false;
+            }
+            return true;
+        });
 
         this.enemyTanks.forEach(tank => {
             if (tank.active) {
                 tank.update(time, delta);
             }
         });
+
+        // 检查胜利条件
+        if (this.enemyTanks.length === 0) {
+            console.log('敌人数组为空，胜利！');
+            this.gameOver(true);
+        }
     }
 }

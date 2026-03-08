@@ -184,21 +184,26 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
     }
 
     takeDamage(amount: number): void {
-        console.log(`坦克受伤，伤害值: ${amount}`); // 调试
-
+        console.log(`坦克受伤，伤害值: ${amount}`);
+        
         const armor = this.getArmor();
         if (armor) {
-            // 直接调用 armor 的方法，而不是通过消息
             const survived = armor.takeDamage(amount);
-
-            // 受伤视觉反馈
-            this.setTint(0xff0000);
-            this.scene.time.delayedCall(200, () => {
-                this.clearTint();
-            });
-
+            
+            // ✅ 增加空值检查，确保 scene 还存在
+            if (this.scene && this.scene.time) {
+                // 受伤视觉反馈
+                this.setTint(0xff0000);
+                this.scene.time.delayedCall(200, () => {
+                    // 再次检查坦克是否还存在
+                    if (this.active) {
+                        this.clearTint();
+                    }
+                });
+            }
+            
             if (!survived) {
-                console.log('坦克死亡');
+                console.log('坦克死亡，准备销毁');
                 this.destroy();
             }
         } else {
@@ -256,18 +261,45 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
         return this;
     }
 
+
+    private isDestroying: boolean = false;
+
     destroy(): this {
+        // 防止重复销毁
+        if (this.isDestroying) {
+            return this;
+        }
+        this.isDestroying = true;
+        
+        console.log(`CompositeTank.destroy 被调用: ${this.type}`);
+        
+        // 先停止所有动作
+        this.setVelocity(0, 0);
+        this.setActive(false);
+        
+        // 发送销毁事件（如果 scene 还存在）
+        if (this.scene && this.scene.events) {
+            this.sendMessage('*', '*', 'destroyed', {
+                type: this.type,
+                x: this.x,
+                y: this.y
+            });
+            
+            this.scene.events.emit('tank_destroyed', {
+                tank: this,
+                type: this.type
+            });
+        }
+        
         // 清理组件
         this.components.forEach(component => component.onRemove());
         this.components.clear();
-
+        
         // 清理状态
         this.states.clear();
         this.currentState = null;
-
-        // 发送销毁事件
-        this.sendMessage('*', '*', 'destroyed', {});
-
+        
+        // 调用父类 destroy
         super.destroy();
         return this;
     }

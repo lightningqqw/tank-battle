@@ -25,17 +25,23 @@ export class ArmorComponent extends Component {
         
         console.log(`装甲受伤: ${oldHealth} -> ${this.currentHealth}/${this.maxHealth}`);
         
-        // 发送受伤事件
+        // ✅ 发送受伤事件，包含坦克类型信息
         if (this.tank && this.tank.scene) {
-            this.tank.scene.events.emit('player_health_updated', {
-                current: this.currentHealth,
-                max: this.maxHealth
-            });
+            // 只对玩家坦克发送 UI 更新事件
+            if (this.tank.type === TankType.PLAYER) {
+                this.tank.scene.events.emit('player_health_updated', {
+                    current: this.currentHealth,
+                    max: this.maxHealth,
+                    tankType: this.tank.type
+                });
+            }
             
+            // 通用受伤事件（用于其他系统）
             this.sendMessage('*', 'damaged', {
                 health: this.currentHealth,
                 maxHealth: this.maxHealth,
-                damage: amount
+                damage: amount,
+                tankType: this.tank.type
             });
         }
         

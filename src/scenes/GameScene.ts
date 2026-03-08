@@ -93,7 +93,7 @@ export class GameScene extends Phaser.Scene {
                 hudScene.events.emit('player_health_updated', data);
             }
         });
-
+        
         // 10. 初始化分数
         if (!this.registry.has('score')) {
             this.registry.set('score', 0);
@@ -406,74 +406,77 @@ export class GameScene extends Phaser.Scene {
 
     private handleBulletTankCollision = (obj1: any, obj2: any, expectedShooter: TankType): void => {
         if (this.isGameOver || this.isTransitioning) return;
-
+    
         console.log('🔥 子弹-坦克碰撞触发！');
-
+    
         const isBullet = (obj: any): boolean => {
             return obj && !obj.isDestroying && typeof obj.getShooterType === 'function' && obj.active;
         };
-
+    
         const isTank = (obj: any): boolean => {
             return obj && !obj.isDestroying && typeof obj.takeDamage === 'function' && obj.active;
         };
-
+    
         const bullet = isBullet(obj1) ? obj1 : (isBullet(obj2) ? obj2 : null);
         const tank = isTank(obj1) ? obj1 : (isTank(obj2) ? obj2 : null);
-
+    
         if (!bullet || !tank) {
             console.log('无法识别子弹或坦克，可能正在销毁中');
             return;
         }
-
+    
         const shooterType = bullet.getShooterType();
-
+    
         if (shooterType !== expectedShooter) {
             return;
         }
-
+    
         const damage = bullet.getDamage();
         console.log(`子弹造成伤害: ${damage}`);
-
+    
         bullet.hit();
-
+    
         try {
             tank.takeDamage(damage);
         } catch (error) {
             console.error('坦克受伤时出错:', error);
         }
-
+    
+        // ✅ 只有玩家坦克受伤时才触发生命更新事件
         if (tank === this.playerTank) {
             const armor = tank.getArmor();
             if (armor) {
                 const currentHealth = armor.getCurrentHealth?.() || 0;
                 const maxHealth = armor.getMaxHealth?.() || 100;
                 console.log(`玩家受伤，触发生命更新: ${currentHealth}/${maxHealth}`);
-
+    
                 this.events.emit('player_health_updated', {
                     current: currentHealth,
                     max: maxHealth
                 });
             }
         }
-
+        // 敌人受伤不触发任何 UI 更新事件
+    
+        // 检查坦克是否死亡
         const armor = tank.getArmor();
         if (armor && armor.getHealthPercent() <= 0) {
             console.log(`坦克死亡: ${tank.type}`);
-
+    
             if (tank !== this.playerTank) {
                 const index = this.enemyTanks.indexOf(tank);
                 if (index > -1) {
                     this.enemyTanks.splice(index, 1);
                 }
-
+    
                 const currentScore = this.registry.get('score') || 0;
                 const newScore = currentScore + 100;
                 this.registry.set('score', newScore);
                 this.events.emit('score_updated', newScore);
                 this.events.emit('enemy_count_updated', this.enemyTanks.length);
-
+    
                 console.log(`敌人被消灭，剩余: ${this.enemyTanks.length}`);
-
+    
                 if (this.enemyTanks.length === 0 && !this.isGameOver && !this.isTransitioning) {
                     console.log('🎉 所有敌人被消灭，胜利！');
                     this.victory();

@@ -1,3 +1,4 @@
+// patterns/components/ArmorComponent.ts
 import { Component } from './Component';
 
 export class ArmorComponent extends Component {
@@ -8,16 +9,20 @@ export class ArmorComponent extends Component {
         super('armor');
         this.maxHealth = health;
         this.currentHealth = health;
+        console.log(`装甲组件创建，生命值: ${this.currentHealth}/${this.maxHealth}`);
     }
     
     update(time: number, delta: number): void {
-        // 自动恢复等逻辑
+        // 可以添加自动恢复等逻辑
     }
     
     takeDamage(amount: number): boolean {
+        const oldHealth = this.currentHealth;
         this.currentHealth -= amount;
         
-        // 广播受伤事件
+        console.log(`装甲受伤: ${oldHealth} -> ${this.currentHealth}/${this.maxHealth}`);
+        
+        // 发送受伤事件
         this.sendMessage('*', 'damaged', {
             health: this.currentHealth,
             maxHealth: this.maxHealth,
@@ -25,6 +30,7 @@ export class ArmorComponent extends Component {
         });
         
         if (this.currentHealth <= 0) {
+            console.log('装甲耐久耗尽');
             this.sendMessage('*', 'destroyed', {});
             return false;
         }
@@ -34,15 +40,24 @@ export class ArmorComponent extends Component {
     
     heal(amount: number): void {
         this.currentHealth = Math.min(this.maxHealth, this.currentHealth + amount);
+        console.log(`装甲修复: ${this.currentHealth}/${this.maxHealth}`);
     }
     
     getHealthPercent(): number {
         return this.currentHealth / this.maxHealth;
     }
     
+    getCurrentHealth(): number {
+        return this.currentHealth;
+    }
+    
     handleMessage(sender: string, message: string, data?: any): void {
+        console.log(`装甲收到消息: ${message}`, data);
+        
         if (message === 'heal') {
             this.heal(data.amount);
+        } else if (message === 'takeDamage') {
+            this.takeDamage(data.amount);
         }
     }
 }

@@ -181,19 +181,27 @@ export class CompositeTank extends Phaser.Physics.Arcade.Sprite {
         }
     }
     
-    takeDamage(amount: number): this {
+    takeDamage(amount: number): void {
+        console.log(`坦克受伤，伤害值: ${amount}`); // 调试
+        
         const armor = this.getArmor();
         if (armor) {
-            armor.handleMessage('external', 'takeDamage', { amount });
+            // 直接调用 armor 的方法，而不是通过消息
+            const survived = armor.takeDamage(amount);
+            
+            // 受伤视觉反馈
+            this.setTint(0xff0000);
+            this.scene.time.delayedCall(200, () => {
+                this.clearTint();
+            });
+            
+            if (!survived) {
+                console.log('坦克死亡');
+                this.destroy();
+            }
+        } else {
+            console.warn('坦克没有装甲组件！');
         }
-        
-        // 受伤视觉反馈
-        this.setTint(0xff0000);
-        this.scene.time.delayedCall(200, () => {
-            this.clearTint();
-        });
-        
-        return this;
     }
     
     fire(): boolean {

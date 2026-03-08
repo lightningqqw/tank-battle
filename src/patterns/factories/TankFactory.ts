@@ -26,20 +26,20 @@ export interface TankConfig {
 export class TankFactory {
     private scene: Phaser.Scene;
     private bulletPool: BulletPool; // 使用具体类型，不是 any
-    
+
     constructor(scene: Phaser.Scene, bulletPool: BulletPool) {
         this.scene = scene;
         this.bulletPool = bulletPool;
-        
+
         // 验证 bulletPool
         if (!this.bulletPool) {
             console.error('TankFactory: bulletPool 为 undefined！');
         }
     }
-    
+
     createTank(config: TankConfig): CompositeTank {
         const texture = `tank_${config.color}`;
-        
+
         const tank = new CompositeTank(
             this.scene,
             config.x,
@@ -48,19 +48,19 @@ export class TankFactory {
             config.type,
             config.color
         );
-        
+
         const tankConfig = this.getConfigByType(config);
-        
+
         // 添加移动组件
         tank.addComponent(new MovementComponent(tankConfig.speed));
-        
+
         // 创建武器组件并设置子弹池
         const weapon = new WeaponComponent(
             tankConfig.damage,
             tankConfig.fireRate,
             tankConfig.bulletSpeed
         );
-        
+
         // 设置子弹池
         if (this.bulletPool) {
             weapon.setBulletPool(this.bulletPool);
@@ -68,37 +68,39 @@ export class TankFactory {
         } else {
             console.error(`武器组件子弹池设置失败！坦克类型: ${config.type}`);
         }
-        
+
         tank.addComponent(weapon);
-        
+
         // 添加装甲组件
         tank.addComponent(new ArmorComponent(tankConfig.health));
-        
+
         tank.baseSpeed = tankConfig.speed;
-        
+
         // 注册状态
         tank.registerState(TankStateType.PATROL, new PatrolState(tank))
             .registerState(TankStateType.CHASE, new ChaseState(tank))
             .registerState(TankStateType.ATTACK, new AttackState(tank))
             .registerState(TankStateType.FLEE, new FleeState(tank))
             .registerState(TankStateType.DEAD, new DeadState(tank));
-        
+
         if (config.type === TankType.ENEMY) {
             tank.changeState(TankStateType.PATROL);
         }
-        
+
         return tank;
     }
-    
+
     private getConfigByType(config: TankConfig): any {
         const baseConfig = {
             speed: config.speed || 100,
-            health: config.health || 100,
+            health: config.health || 100, // 确保这里有值
             damage: config.damage || 10,
             fireRate: config.fireRate || 500,
             bulletSpeed: config.bulletSpeed || 300
         };
-        
+
+        console.log(`坦克配置:`, baseConfig); // 调试
+
         if (config.type === TankType.PLAYER) {
             return {
                 ...baseConfig,
@@ -107,7 +109,7 @@ export class TankFactory {
                 damage: config.damage || 20
             };
         } else {
-            switch(config.color) {
+            switch (config.color) {
                 case TankColor.RED:
                     return { ...baseConfig, speed: 120, health: 60, damage: 15 };
                 case TankColor.GREEN:

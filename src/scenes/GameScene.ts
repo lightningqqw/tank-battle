@@ -273,6 +273,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     private handleBulletTankCollision = (obj1: any, obj2: any, expectedShooter: TankType): void => {
+        console.log('🔥 子弹-坦克碰撞触发！');
+        
         const isBullet = (obj: any): boolean => {
             return obj && typeof obj.getShooterType === 'function' && obj.active;
         };
@@ -284,36 +286,61 @@ export class GameScene extends Phaser.Scene {
         const bullet = isBullet(obj1) ? obj1 : (isBullet(obj2) ? obj2 : null);
         const tank = isTank(obj1) ? obj1 : (isTank(obj2) ? obj2 : null);
         
-        if (!bullet || !tank) return;
+        if (!bullet || !tank) {
+            console.log('无法识别子弹或坦克');
+            return;
+        }
         
-        if (bullet.getShooterType() !== expectedShooter) return;
+        const shooterType = bullet.getShooterType();
+        console.log(`子弹类型: ${shooterType}, 期望: ${expectedShooter}, 坦克类型: ${tank.type}`);
         
-        console.log(`子弹击中坦克，射击者: ${bullet.getShooterType()}`);
+        if (shooterType !== expectedShooter) {
+            console.log('子弹类型不匹配，忽略');
+            return;
+        }
         
+        const damage = bullet.getDamage();
+        console.log(`子弹造成伤害: ${damage}`);
+        
+        // 子弹击中（播放效果）
         bullet.hit();
-        tank.takeDamage(bullet.getDamage());
         
+        // 坦克受伤 - 直接调用 takeDamage
+        tank.takeDamage(damage);
+        
+        // 如果是敌人被玩家击中，检查死亡并加分
         if (expectedShooter === TankType.PLAYER && tank !== this.playerTank) {
             const armor = tank.getArmor();
-            if (armor && armor.getHealthPercent() <= 0) {
-                const index = this.enemyTanks.indexOf(tank);
-                if (index > -1) {
-                    this.enemyTanks.splice(index, 1);
-                }
+            if (armor) {
+                console.log(`敌人剩余生命: ${armor.getCurrentHealth?.() || 'unknown'}`);
                 
-                const currentScore = this.registry.get('score') || 0;
-                this.registry.set('score', currentScore + 100);
-                this.events.emit('score_updated', currentScore + 100);
-                this.events.emit('enemy_count_updated', this.enemyTanks.length);
+                if (armor.getHealthPercent() <= 0) {
+                    console.log('敌人死亡，加分');
+                    const index = this.enemyTanks.indexOf(tank);
+                    if (index > -1) {
+                        this.enemyTanks.splice(index, 1);
+                    }
+                    
+                    const currentScore = this.registry.get('score') || 0;
+                    this.registry.set('score', currentScore + 100);
+                    this.events.emit('score_updated', currentScore + 100);
+                    this.events.emit('enemy_count_updated', this.enemyTanks.length);
+                }
             }
         }
         
+        // 如果是玩家被击中
         if (expectedShooter === TankType.ENEMY && tank === this.playerTank) {
             const armor = tank.getArmor();
-            if (armor && armor.getHealthPercent() <= 0) {
-                this.gameOver(false);
-            } else {
-                this.cameras.main.shake(100, 0.01);
+            if (armor) {
+                console.log(`玩家剩余生命: ${armor.getCurrentHealth?.()}`);
+                
+                if (armor.getHealthPercent() <= 0) {
+                    console.log('玩家死亡，游戏结束');
+                    this.gameOver(false);
+                } else {
+                    this.cameras.main.shake(100, 0.01);
+                }
             }
         }
     }

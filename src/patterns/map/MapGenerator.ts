@@ -47,11 +47,20 @@ export class MapGenerator {
     // ✅ 确保这个静态方法存在且正确导出
     static getRandomConfig(level: number = 1): MapConfig {
         const random = new Phaser.Math.RandomDataGenerator([Date.now().toString()]);
-        
+
+        // 固定格子大小为 40px
+        const TILE_SIZE = 40;
+        // 画布大小 800x600
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
+        // 计算格子数量
+        const gridWidth = Math.floor(CANVAS_WIDTH / TILE_SIZE);
+        const gridHeight = Math.floor(CANVAS_HEIGHT / TILE_SIZE);
+
         return {
-            width: 20,
-            height: 15,
-            tileSize: 100,
+            width: gridWidth,      // 20 格 (800/40)
+            height: gridHeight,    // 15 格 (600/40)
+            tileSize: TILE_SIZE,   // 40px
             wallDensity: Math.min(0.2 + level * 0.05, 0.5),
             steelRatio: Math.min(0.1 + level * 0.1, 0.4),
             hasWater: level >= 2,

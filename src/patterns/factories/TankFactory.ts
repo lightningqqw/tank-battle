@@ -92,11 +92,11 @@ export class TankFactory {
 
     private getConfigByType(config: TankConfig): any {
         const baseConfig = {
-            speed: config.speed || 100,
-            health: config.health || 100, // 确保这里有值
+            speed: config.speed || 50,        // 默认速度降低
+            health: config.health || 100,
             damage: config.damage || 10,
             fireRate: config.fireRate || 500,
-            bulletSpeed: config.bulletSpeed || 300
+            bulletSpeed: config.bulletSpeed || 150  // 默认子弹速度降低
         };
 
         console.log(`坦克配置:`, baseConfig); // 调试
@@ -104,18 +104,19 @@ export class TankFactory {
         if (config.type === TankType.PLAYER) {
             return {
                 ...baseConfig,
-                speed: config.speed || 150,
+                speed: config.speed || 100,       // 玩家默认速度
                 health: config.health || 100,
-                damage: config.damage || 20
+                damage: config.damage || 20,
+                bulletSpeed: config.bulletSpeed || 200  // 玩家默认子弹速度
             };
         } else {
             switch (config.color) {
                 case TankColor.RED:
-                    return { ...baseConfig, speed: 120, health: 60, damage: 15 };
+                    return { ...baseConfig, speed: 60, health: 60, damage: 15, bulletSpeed: 150 };   // 速度降低
                 case TankColor.GREEN:
-                    return { ...baseConfig, speed: 80, health: 80, damage: 10 };
+                    return { ...baseConfig, speed: 40, health: 80, damage: 10, bulletSpeed: 150 };  // 速度降低
                 default:
-                    return { ...baseConfig, speed: 100, health: 100, damage: 20 };
+                    return { ...baseConfig, speed: 50, health: 100, damage: 20, bulletSpeed: 150 }; // 速度降低
             }
         }
     }

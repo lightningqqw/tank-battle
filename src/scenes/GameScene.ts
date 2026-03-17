@@ -148,30 +148,11 @@ export class GameScene extends Phaser.Scene {
         if (type === 'base') textureKey = 'steel';
         
         const wall = this.walls.create(x, y, textureKey);
-        
-        // ✅ 根据瓦片类型设置不同的缩放比例
-        let scale = 0.05; // 默认缩放
-        
-        switch(type) {
-            case 'brick':
-                scale = 0.025; // brick 图片大一倍，所以缩小到一半 (0.05/2 = 0.025)
-                break;
-            case 'steel':
-                scale = 0.05; // steel 保持默认
-                break;
-            case 'water':
-                scale = 0.05; // water 保持默认
-                break;
-            case 'grass':
-                scale = 0.05; // grass 保持默认
-                break;
-            case 'base':
-                scale = 0.05; // base 保持默认
-                break;
-        }
-        
-        wall.setScale(scale).refreshBody();
-        
+
+        // ✅ 固定所有瓦片大小为 40x40 像素
+        wall.setDisplaySize(40, 40);
+        wall.refreshBody();
+
         wall.setData('type', type);
         wall.setData('health', health || 1);
         wall.setData('gridX', tile.gridX);
@@ -213,12 +194,13 @@ export class GameScene extends Phaser.Scene {
             color: TankColor.BLUE,
             x: spawn.x,
             y: spawn.y,
-            speed: 200,
+            speed: 100,        // 原来是 200，变慢
             health: 100,
             damage: 20,
             fireRate: 300,
-            bulletSpeed: 400
+            bulletSpeed: 200   // 原来是 400，变慢
         });
+        this.playerTank.setDisplaySize(50, 50);
     }
 
     // 修改 createEnemyTanks 使用地图的敌人出生点
@@ -226,9 +208,9 @@ export class GameScene extends Phaser.Scene {
         if (!this.mapData) return;
 
         const enemyConfigs = [
-            { color: TankColor.RED, speed: 120, health: 60 },
-            { color: TankColor.GREEN, speed: 80, health: 80 },
-            { color: TankColor.BLUE, speed: 100, health: 100 }
+            { color: TankColor.RED, speed: 60, health: 60 },    // 原来是 120
+            { color: TankColor.GREEN, speed: 40, health: 80 },  // 原来是 80
+            { color: TankColor.BLUE, speed: 50, health: 100 }   // 原来是 100
         ];
 
         // 使用地图中的敌人出生点
